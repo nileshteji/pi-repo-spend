@@ -1,6 +1,6 @@
 # pi-repo-spend
 
-A Pi extension that shows a graphical dashboard for how much money and how many tokens you have spent per cwd, repo, provider, model, month, and day.
+A Pi extension that shows a graphical dashboard for how much money and how many tokens you have spent per cwd, repo, model, month, and day.
 
 It reads Pi's local JSONL session logs from `~/.pi/agent/sessions`, aggregates usage, and shows a graphical dashboard or copyable Markdown report inside Pi.
 
@@ -21,7 +21,6 @@ It reads Pi's local JSONL session logs from `~/.pi/agent/sessions`, aggregates u
 - Total recorded cost from Pi logs
 - Model-level estimated Ollama Cloud cost when Pi records Ollama as `$0`
 - Cost by month and day for exact-cwd reports
-- Cost by provider
 - Cost by model
 - Cost by repo/cwd when scanning all sessions
 - Copyable Markdown report via `text` mode
@@ -34,7 +33,7 @@ Example graphical dashboard for the current cwd/session:
 
 Example copyable text output for the current cwd/session:
 
-![Actual /repo-spend text output showing summary, provider totals, and model totals](assets/screenshots/repo-spend-current-session.png)
+![Actual /repo-spend text output showing summary and model totals](assets/screenshots/repo-spend-current-session.png)
 
 Example output for all Pi sessions grouped by repo/cwd:
 

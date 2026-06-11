@@ -70,7 +70,6 @@ type ScanResult = {
 	newest?: string;
 	totals: NumericTotals;
 	byModel: ModelTotals[];
-	byProvider: ModelTotals[];
 	byRepo: RepoTotals[];
 	byMonth: TimeBucketTotals[];
 	byDay: TimeBucketTotals[];
@@ -263,7 +262,6 @@ async function scanSpend(pi: ExtensionAPI, cwd: string, mode: ScanMode): Promise
 	const files = await listJsonlFiles(root);
 	const totals = blankTotals();
 	const byModelMap = new Map<string, ModelTotals>();
-	const byProviderMap = new Map<string, ModelTotals>();
 	const byRepoMap = new Map<string, RepoAccumulator>();
 	const byMonthMap = new Map<string, TimeBucketTotals>();
 	const byDayMap = new Map<string, TimeBucketTotals>();
@@ -357,12 +355,6 @@ async function scanSpend(pi: ExtensionAPI, cwd: string, mode: ScanMode): Promise
 			addInto(modelTotals, item);
 			if (!modelTotals.pricingSource && ollamaEstimate.source) modelTotals.pricingSource = ollamaEstimate.source;
 
-			let providerTotals = byProviderMap.get(provider);
-			if (!providerTotals) {
-				providerTotals = { ...blankTotals(), provider, model: "*", api: "*" };
-				byProviderMap.set(provider, providerTotals);
-			}
-			addInto(providerTotals, item);
 		}
 	}
 
@@ -378,7 +370,6 @@ async function scanSpend(pi: ExtensionAPI, cwd: string, mode: ScanMode): Promise
 		newest,
 		totals,
 		byModel: [...byModelMap.values()].sort((a, b) => totalCost(b) - totalCost(a)),
-		byProvider: [...byProviderMap.values()].sort((a, b) => totalCost(b) - totalCost(a)),
 		byRepo: [...byRepoMap.values()].map(finalizeRepo).sort((a, b) => totalCost(b) - totalCost(a)),
 		byMonth: [...byMonthMap.values()].sort((a, b) => b.period.localeCompare(a.period)),
 		byDay: [...byDayMap.values()].sort((a, b) => b.period.localeCompare(a.period)),
@@ -437,16 +428,6 @@ function modelRow(item: ModelTotals): string {
 		fmtInt(item.cacheRead),
 		fmtMoney(item.recordedCost),
 		fmtMoney(item.estimatedCost),
-		fmtMoney(totalCost(item)),
-	].join(" | ");
-}
-
-function providerRow(item: ModelTotals): string {
-	return [
-		`\`${item.provider}\``,
-		fmtInt(item.calls),
-		fmtInt(item.totalTokens),
-		fmtMoney(item.recordedCost),
 		fmtMoney(totalCost(item)),
 	].join(" | ");
 }
@@ -615,14 +596,13 @@ class SpendDashboard implements Component {
 		lines.push("");
 		lines.push(`${th.fg("success", "●")} ${padAnsi("Recorded:", 17)} ${renderBar(total.recordedCost, costMax, 14, th, "success")} ${th.bold(fmtMoney(total.recordedCost))}`);
 		lines.push("");
-		lines.push(tableLine([th.fg("accent", "Sessions"), th.fg("accent", "Calls"), th.fg("accent", "Providers"), th.fg("accent", "Models")], [10, 8, 10, 8]));
-		lines.push(tableLine([fmtInt(this.result.filesIncluded), fmtInt(total.calls), fmtInt(this.result.byProvider.length), fmtInt(this.result.byModel.length)], [10, 8, 10, 8]));
+		lines.push(tableLine([th.fg("accent", "Sessions"), th.fg("accent", "Calls"), th.fg("accent", "Models")], [10, 8, 8]));
+		lines.push(tableLine([fmtInt(this.result.filesIncluded), fmtInt(total.calls), fmtInt(this.result.byModel.length)], [10, 8, 8]));
 
 		if (this.result.mode === "cwd") {
 			lines.push(...this.sectionRows("By day", this.result.byDay, 7));
 			lines.push(...this.sectionRows("By month", this.result.byMonth, 6));
 		}
-		lines.push(...this.sectionRows("Top providers", this.result.byProvider, 5));
 		lines.push(...this.sectionRows("Top models", this.result.byModel, 5, totalCost));
 		lines.push("");
 		lines.push(th.fg("dim", "Tip: use /repo-spend text for the copyable Markdown table."));
@@ -687,15 +667,6 @@ function renderReport(result: ScanResult): string {
 		lines.push("Repo / cwd | Sessions | Calls | Tokens | Recorded | Total | Top model");
 		lines.push("---|---:|---:|---:|---:|---:|---");
 		for (const item of result.byRepo) lines.push(repoRow(item));
-		lines.push("");
-	}
-
-	if (result.byProvider.length > 0) {
-		lines.push("## By provider");
-		lines.push("");
-		lines.push("Provider | Calls | Tokens | Recorded | Total");
-		lines.push("---|---:|---:|---:|---:");
-		for (const item of result.byProvider) lines.push(providerRow(item));
 		lines.push("");
 	}
 
