@@ -25,13 +25,13 @@ It reads Pi's local JSONL session logs from `~/.pi/agent/sessions`, aggregates u
 
 ## Screenshots
 
-Example output for the current repo:
+Example output for the current repo/session:
 
-![Example /repo-spend output showing summary, provider totals, and model totals](assets/screenshots/repo-spend-current-repo.svg)
+![Actual /repo-spend output showing summary, provider totals, and model totals](assets/screenshots/repo-spend-current-session.png)
 
 Example output for all Pi sessions grouped by repo/cwd:
 
-![Example /repo-spend all output showing spend grouped by repo and cwd](assets/screenshots/repo-spend-all-sessions.svg)
+![Actual /repo-spend all output showing spend grouped by repo and cwd](assets/screenshots/repo-spend-all-sessions.png)
 
 ## Commands
 
