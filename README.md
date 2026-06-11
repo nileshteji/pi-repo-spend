@@ -1,51 +1,71 @@
-# pi-repo-spend
+# spend
 
-A Pi extension that reports how much money and how many tokens you have spent per repo, provider, and model.
+A Pi extension that reports how much money and how many tokens you have spent per cwd, repo, model, month, and day.
 
-It reads Pi's local JSONL session logs from `~/.pi/agent/sessions`, aggregates usage, and shows a Markdown report inside Pi.
+It reads Pi's local JSONL session logs from `~/.pi/agent/sessions`, aggregates usage, and shows a copyable Markdown report or graphical dashboard inside Pi.
 
 ## Extension name
 
-`pi-repo-spend`
+`spend`
 
 ## Slash command
 
 ```text
-/repo-spend
+/spend
 ```
 
 ## What it shows
 
+- Copyable Markdown report by default
+- Optional graphical token composition dashboard inspired by `/context`
 - Total token usage
 - Total recorded cost from Pi logs
-- Estimated Ollama Cloud cost when Pi records Ollama as `$0`
-- Cost by provider
+- Model-level estimated Ollama Cloud cost when Pi records Ollama as `$0`
+- Cost by month and day for exact-cwd reports
 - Cost by model
 - Cost by repo/cwd when scanning all sessions
+- Graphical dashboard via `dashboard` mode
 
 ## Screenshots
 
-Example output for the current repo/session:
+Example copyable text output for the current cwd/session:
 
-![Actual /repo-spend output showing summary, provider totals, and model totals](assets/screenshots/repo-spend-current-session.png)
+![Actual /spend text output showing summary and model totals](assets/screenshots/spend-current-session.png)
+
+Example graphical dashboard for the current cwd/session:
+
+![Actual /spend dashboard output showing token composition, spend bars, and daily/monthly sections](assets/screenshots/spend-dashboard.png)
 
 Example output for all Pi sessions grouped by repo/cwd:
 
-![Actual /repo-spend all output showing spend grouped by repo and cwd](assets/screenshots/repo-spend-all-sessions.png)
+![Actual /spend all output showing spend grouped by repo and cwd](assets/screenshots/spend-all-sessions.png)
 
 ## Commands
 
 ```text
-/repo-spend       # current git repo; includes sessions in repo subdirectories
-/repo-spend cwd   # only sessions whose cwd exactly matches the current cwd
-/repo-spend all   # all Pi sessions, grouped by repo/cwd
+/spend                 # copyable Markdown report for sessions whose cwd exactly matches the current cwd
+/spend cwd             # same as /spend
+/spend repo            # copyable Markdown report for the current git repo; no monthly/daily tables
+/spend all             # copyable Markdown report for all Pi sessions, grouped by repo/cwd; no monthly/daily tables
+/spend dashboard       # graphical dashboard for exact cwd
+/spend all dashboard   # graphical dashboard for all Pi sessions
 ```
 
-In `/repo-spend all`, the report includes a table like:
+In exact-cwd mode (`/spend` or `/spend cwd`), the report includes monthly and daily tables like:
 
-| Repo / cwd | Sessions | Calls | Tokens | Recorded | Ollama estimate | Total | Top model |
-|---|---:|---:|---:|---:|---:|---:|---|
-| `my-repo (/path/to/my-repo)` | 3 | 120 | 1,234,567 | `$4.20` | `$0.12` | `$4.32` | `openai-codex/gpt-5.5` |
+| Month | Calls | Tokens | Recorded | Total |
+|---|---:|---:|---:|---:|
+| 2026-06 | 20 | 333,194 | $0.82 | $0.82 |
+
+| Day | Calls | Tokens | Recorded | Total |
+|---|---:|---:|---:|---:|
+| 2026-06-11 | 20 | 333,194 | $0.82 | $0.82 |
+
+In `/spend all`, the report includes a table like:
+
+| Repo / cwd | Sessions | Calls | Tokens | Recorded | Total | Top model |
+|---|---:|---:|---:|---:|---:|---|
+| `my-repo (/path/to/my-repo)` | 3 | 120 | 1,234,567 | `$4.20` | `$4.32` | `openai-codex/gpt-5.5` |
 
 ## Run once
 
@@ -56,7 +76,7 @@ pi -e /Users/nileshteji/aibot/pi-repo-spend
 Then use:
 
 ```text
-/repo-spend
+/spend
 ```
 
 ## Install as a local Pi package
@@ -75,7 +95,7 @@ Then restart Pi or run:
 
 - For providers where Pi records `usage.cost.total`, this extension uses the recorded cost.
 - For Ollama Cloud, Pi often records `$0`; this extension estimates the cost from a hardcoded pricing table.
-- Ollama estimates are shown separately as `Estimated Ollama Cloud cost`.
+- Ollama estimates are shown in the `Estimate` column of the model table only.
 
 ## Hardcoded Ollama Cloud estimate rates
 

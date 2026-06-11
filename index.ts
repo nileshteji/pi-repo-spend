@@ -1,12 +1,12 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
-import { Markdown } from "@earendil-works/pi-tui";
+import { Markdown, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 
-const EXTENSION_ID = "pi-repo-spend";
-const COMMAND = "repo-spend";
+const EXTENSION_ID = "spend";
+const COMMAND = "spend";
 const MILLION = 1_000_000;
 
 type NumericTotals = {
@@ -46,7 +46,17 @@ type RepoAccumulator = RepoTotals & {
 	models: Map<string, NumericTotals>;
 };
 
+type TimeBucketTotals = NumericTotals & {
+	period: string;
+};
+
 type ScanMode = "repo" | "all" | "cwd";
+type ReportView = "dashboard" | "text";
+
+type ParsedArgs = {
+	mode: ScanMode;
+	view: ReportView;
+};
 
 type ScanResult = {
 	mode: ScanMode;
@@ -60,8 +70,9 @@ type ScanResult = {
 	newest?: string;
 	totals: NumericTotals;
 	byModel: ModelTotals[];
-	byProvider: ModelTotals[];
 	byRepo: RepoTotals[];
+	byMonth: TimeBucketTotals[];
+	byDay: TimeBucketTotals[];
 };
 
 const OLLAMA_CLOUD_PRICES: Record<string, Price> = {
@@ -195,15 +206,6 @@ async function getRepoRoot(pi: ExtensionAPI, cwd: string): Promise<string> {
 	return path.resolve(cwd);
 }
 
-async function readSessionHeader(file: string): Promise<{ cwd?: string; timestamp?: string } | undefined> {
-	const text = await readFile(file, "utf8");
-	const firstLine = text.split("\n", 1)[0];
-	if (!firstLine?.trim()) return undefined;
-	const header = JSON.parse(firstLine);
-	if (header?.type !== "session") return undefined;
-	return { cwd: header.cwd, timestamp: header.timestamp };
-}
-
 function shouldIncludeSession(headerCwd: string | undefined, mode: ScanMode, cwd: string, repoRoot: string): boolean {
 	if (mode === "all") return true;
 	if (!headerCwd) return false;
@@ -231,14 +233,38 @@ function finalizeRepo(acc: RepoAccumulator): RepoTotals {
 	return { ...repo, topModel };
 }
 
+function addToTimeBucket(map: Map<string, TimeBucketTotals>, period: string | undefined, item: Partial<NumericTotals>) {
+	if (!period) return;
+	let totals = map.get(period);
+	if (!totals) {
+		totals = { ...blankTotals(), period };
+		map.set(period, totals);
+	}
+	addInto(totals, item);
+}
+
+function entryTimestampIso(entry: any, fallback?: string): string | undefined {
+	if (typeof entry?.timestamp === "string") return entry.timestamp;
+	const messageTimestamp = entry?.message?.timestamp;
+	if (typeof messageTimestamp === "number" && Number.isFinite(messageTimestamp)) {
+		return new Date(messageTimestamp).toISOString();
+	}
+	if (typeof messageTimestamp === "string") {
+		const date = new Date(messageTimestamp);
+		if (!Number.isNaN(date.getTime())) return date.toISOString();
+	}
+	return fallback;
+}
+
 async function scanSpend(pi: ExtensionAPI, cwd: string, mode: ScanMode): Promise<ScanResult> {
 	const root = sessionRoot();
 	const repoRoot = await getRepoRoot(pi, cwd);
 	const files = await listJsonlFiles(root);
 	const totals = blankTotals();
 	const byModelMap = new Map<string, ModelTotals>();
-	const byProviderMap = new Map<string, ModelTotals>();
 	const byRepoMap = new Map<string, RepoAccumulator>();
+	const byMonthMap = new Map<string, TimeBucketTotals>();
+	const byDayMap = new Map<string, TimeBucketTotals>();
 	let filesIncluded = 0;
 	let parseErrors = 0;
 	let oldest: string | undefined;
@@ -268,10 +294,10 @@ async function scanSpend(pi: ExtensionAPI, cwd: string, mode: ScanMode): Promise
 		repoTotals.sessions++;
 
 		const fileStat = await stat(file).catch(() => undefined);
-		if (fileStat) {
-			const mtime = fileStat.mtime.toISOString();
-			if (!oldest || mtime < oldest) oldest = mtime;
-			if (!newest || mtime > newest) newest = mtime;
+		const fileMtime = fileStat?.mtime.toISOString();
+		if (fileMtime) {
+			if (!oldest || fileMtime < oldest) oldest = fileMtime;
+			if (!newest || fileMtime > newest) newest = fileMtime;
 		}
 
 		for (const line of text.split("\n")) {
@@ -289,7 +315,6 @@ async function scanSpend(pi: ExtensionAPI, cwd: string, mode: ScanMode): Promise
 
 			const provider = String(message.provider ?? "unknown");
 			const model = String(message.model ?? "unknown");
-			const api = String(message.api ?? "unknown");
 			const usage = message.usage;
 			const recordedCost = Number(usage?.cost?.total ?? 0);
 			const ollamaEstimate = provider === "ollama" ? estimateOllamaCost(model, usage) : { cost: 0 };
@@ -307,6 +332,11 @@ async function scanSpend(pi: ExtensionAPI, cwd: string, mode: ScanMode): Promise
 			};
 			addInto(totals, item);
 			addInto(repoTotals, item);
+			if (mode === "cwd") {
+				const timestamp = entryTimestampIso(entry, fileMtime);
+				addToTimeBucket(byMonthMap, timestamp?.slice(0, 7), item);
+				addToTimeBucket(byDayMap, timestamp?.slice(0, 10), item);
+			}
 			const repoModelKey = `${provider}/${model}`;
 			let repoModelTotals = repoTotals.models.get(repoModelKey);
 			if (!repoModelTotals) {
@@ -315,21 +345,15 @@ async function scanSpend(pi: ExtensionAPI, cwd: string, mode: ScanMode): Promise
 			}
 			addInto(repoModelTotals, item);
 
-			const modelKey = `${provider}\t${model}\t${api}`;
+			const modelKey = `${provider}\t${model}`;
 			let modelTotals = byModelMap.get(modelKey);
 			if (!modelTotals) {
-				modelTotals = { ...blankTotals(), provider, model, api, pricingSource: ollamaEstimate.source };
+				modelTotals = { ...blankTotals(), provider, model, api: "*", pricingSource: ollamaEstimate.source };
 				byModelMap.set(modelKey, modelTotals);
 			}
 			addInto(modelTotals, item);
 			if (!modelTotals.pricingSource && ollamaEstimate.source) modelTotals.pricingSource = ollamaEstimate.source;
 
-			let providerTotals = byProviderMap.get(provider);
-			if (!providerTotals) {
-				providerTotals = { ...blankTotals(), provider, model: "*", api: "*" };
-				byProviderMap.set(provider, providerTotals);
-			}
-			addInto(providerTotals, item);
 		}
 	}
 
@@ -345,8 +369,9 @@ async function scanSpend(pi: ExtensionAPI, cwd: string, mode: ScanMode): Promise
 		newest,
 		totals,
 		byModel: [...byModelMap.values()].sort((a, b) => totalCost(b) - totalCost(a)),
-		byProvider: [...byProviderMap.values()].sort((a, b) => totalCost(b) - totalCost(a)),
 		byRepo: [...byRepoMap.values()].map(finalizeRepo).sort((a, b) => totalCost(b) - totalCost(a)),
+		byMonth: [...byMonthMap.values()].sort((a, b) => b.period.localeCompare(a.period)),
+		byDay: [...byDayMap.values()].sort((a, b) => b.period.localeCompare(a.period)),
 	};
 }
 
@@ -369,6 +394,25 @@ function fmtDate(value?: string): string {
 	return value.replace("T", " ").replace(/\.\d{3}Z$/, "Z");
 }
 
+function fmtCompact(n: number): string {
+	if (!Number.isFinite(n)) return "0";
+	const abs = Math.abs(n);
+	if (abs >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}b`;
+	if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}m`;
+	if (abs >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+	return Math.round(n).toString();
+}
+
+function percent(part: number, total: number): string {
+	if (!Number.isFinite(part) || !Number.isFinite(total) || total <= 0) return "0%";
+	return `${Math.round((part / total) * 100)}%`;
+}
+
+function padAnsi(text: string, width: number): string {
+	const pad = Math.max(0, width - visibleWidth(text));
+	return text + " ".repeat(pad);
+}
+
 function row(label: string, value: string | number): string {
 	return `| ${label} | ${value} |`;
 }
@@ -387,17 +431,6 @@ function modelRow(item: ModelTotals): string {
 	].join(" | ");
 }
 
-function providerRow(item: ModelTotals): string {
-	return [
-		`\`${item.provider}\``,
-		fmtInt(item.calls),
-		fmtInt(item.totalTokens),
-		fmtMoney(item.recordedCost),
-		fmtMoney(item.estimatedCost),
-		fmtMoney(totalCost(item)),
-	].join(" | ");
-}
-
 function repoRow(item: RepoTotals): string {
 	return [
 		` ${item.label.replace(/`/g, "")} `,
@@ -405,10 +438,176 @@ function repoRow(item: RepoTotals): string {
 		fmtInt(item.calls),
 		fmtInt(item.totalTokens),
 		fmtMoney(item.recordedCost),
-		fmtMoney(item.estimatedCost),
 		fmtMoney(totalCost(item)),
 		item.topModel ? `\`${item.topModel}\`` : "n/a",
 	].join(" | ");
+}
+
+function timeBucketRow(item: TimeBucketTotals): string {
+	return [
+		item.period,
+		fmtInt(item.calls),
+		fmtInt(item.totalTokens),
+		fmtMoney(item.recordedCost),
+		fmtMoney(totalCost(item)),
+	].join(" | ");
+}
+
+const GRID_COLS = 11;
+const GRID_ROWS = 8;
+const GRID_CELLS = GRID_COLS * GRID_ROWS;
+
+type TokenCell = "input" | "output" | "cacheRead" | "cacheWrite" | "empty";
+
+function allocateCells(parts: Array<{ kind: TokenCell; value: number }>): TokenCell[] {
+	const total = parts.reduce((sum, part) => sum + Math.max(0, part.value), 0);
+	if (total <= 0) return Array(GRID_CELLS).fill("empty");
+
+	const cells: TokenCell[] = [];
+	for (const part of parts) {
+		let count = Math.round((Math.max(0, part.value) / total) * GRID_CELLS);
+		if (part.value > 0 && count === 0) count = 1;
+		for (let i = 0; i < count; i++) cells.push(part.kind);
+	}
+
+	while (cells.length < GRID_CELLS) cells.push("empty");
+	while (cells.length > GRID_CELLS) cells.pop();
+	return cells;
+}
+
+function cellSymbol(kind: TokenCell): string {
+	switch (kind) {
+		case "input":
+			return "◍";
+		case "output":
+			return "○";
+		case "cacheRead":
+			return "●";
+		case "cacheWrite":
+			return "◌";
+		case "empty":
+			return "·";
+	}
+}
+
+function colorCell(kind: TokenCell, theme: Theme): string {
+	const symbol = cellSymbol(kind);
+	switch (kind) {
+		case "input":
+			return theme.fg("accent", symbol);
+		case "output":
+			return theme.fg("warning", symbol);
+		case "cacheRead":
+			return theme.fg("success", symbol);
+		case "cacheWrite":
+			return theme.fg("muted", symbol);
+		case "empty":
+			return theme.fg("dim", symbol);
+	}
+}
+
+function renderTokenGrid(totals: NumericTotals, theme: Theme): string[] {
+	const cells = allocateCells([
+		{ kind: "input", value: totals.input },
+		{ kind: "output", value: totals.output },
+		{ kind: "cacheRead", value: totals.cacheRead },
+		{ kind: "cacheWrite", value: totals.cacheWrite },
+	]);
+	const lines: string[] = [];
+	for (let rowIndex = 0; rowIndex < GRID_ROWS; rowIndex++) {
+		const start = rowIndex * GRID_COLS;
+		lines.push(cells.slice(start, start + GRID_COLS).map((kind) => colorCell(kind, theme)).join(" "));
+	}
+	return lines;
+}
+
+function renderBar(value: number, max: number, width: number, theme: Theme, color: "accent" | "success" | "warning" | "muted"): string {
+	const safeMax = max > 0 ? max : 1;
+	const filled = Math.max(0, Math.min(width, Math.round((value / safeMax) * width)));
+	return theme.fg(color, "█".repeat(filled)) + theme.fg("dim", "░".repeat(width - filled));
+}
+
+function compactScope(result: ScanResult): string {
+	if (result.mode === "all") return "all sessions";
+	if (result.mode === "repo") return path.basename(result.repoRoot) || result.repoRoot;
+	return path.basename(result.cwd) || result.cwd;
+}
+
+function tableLine(parts: string[], widths: number[]): string {
+	return parts.map((part, index) => padAnsi(part, widths[index])).join("  ");
+}
+
+class SpendDashboard implements Component {
+	constructor(private readonly result: ScanResult, private readonly theme: Theme) {}
+
+	invalidate(): void {}
+
+	private legendLine(symbol: string, label: string, value: string, pct: string, color: "accent" | "success" | "warning" | "muted" | "dim"): string {
+		const th = this.theme;
+		return `${th.fg(color, symbol)} ${padAnsi(`${label}:`, 17)} ${th.bold(value.padStart(9))} ${th.fg("muted", `(${pct})`)}`;
+	}
+
+	private sectionRows(
+		title: string,
+		rows: Array<TimeBucketTotals | ModelTotals>,
+		maxRows: number,
+		costOf: (row: TimeBucketTotals | ModelTotals) => number = (row) => row.recordedCost
+	): string[] {
+		if (rows.length === 0) return [];
+		const th = this.theme;
+		const visible = rows.slice(0, maxRows);
+		const max = Math.max(...visible.map(costOf), ...visible.map((row) => row.totalTokens / MILLION), 0.000001);
+		const labelFor = (row: TimeBucketTotals | ModelTotals) =>
+			"period" in row ? row.period : row.model === "*" ? row.provider : `${row.provider}/${row.model}`;
+		const labelWidth = Math.min(26, Math.max(title.length, ...visible.map((row) => labelFor(row).length)));
+		const lines = ["", th.bold(title)];
+		for (const row of visible) {
+			const label = labelFor(row);
+			const cost = costOf(row);
+			const score = cost > 0 ? cost : row.totalTokens / MILLION;
+			lines.push(
+				`${truncateToWidth(label, labelWidth).padEnd(labelWidth)}  ${renderBar(score, max, 14, th, cost > 0 ? "success" : "accent")}  ${fmtMoney(cost).padStart(8)}  ${fmtCompact(row.totalTokens).padStart(7)} tok`
+			);
+		}
+		if (rows.length > maxRows) lines.push(th.fg("dim", `… ${rows.length - maxRows} more`));
+		return lines;
+	}
+
+	render(width: number): string[] {
+		const th = this.theme;
+		const total = this.result.totals;
+		const totalTokens = total.totalTokens || total.input + total.output + total.cacheRead + total.cacheWrite;
+		const totalSpend = total.recordedCost;
+		const costMax = Math.max(total.recordedCost, 0.000001);
+		const lines: string[] = [];
+
+		lines.push(th.bold("Pi Spend"));
+		lines.push(th.fg("dim", this.result.mode === "cwd" ? `Exact cwd: ${this.result.cwd}` : this.result.mode === "all" ? "All Pi sessions" : `Repo: ${this.result.repoRoot}`));
+		lines.push("");
+		lines.push(...renderTokenGrid(total, th));
+		lines.push("");
+		lines.push(`${th.fg("muted", compactScope(this.result))}   ${th.bold(fmtMoney(totalSpend))} / ${th.bold(fmtCompact(totalTokens))} tokens`);
+		lines.push("");
+		lines.push(this.legendLine("◍", "Input", fmtCompact(total.input), percent(total.input, totalTokens), "accent"));
+		lines.push(this.legendLine("○", "Output", fmtCompact(total.output), percent(total.output, totalTokens), "warning"));
+		lines.push(this.legendLine("●", "Cache read", fmtCompact(total.cacheRead), percent(total.cacheRead, totalTokens), "success"));
+		lines.push(this.legendLine("◌", "Cache write", fmtCompact(total.cacheWrite), percent(total.cacheWrite, totalTokens), "muted"));
+		lines.push("");
+		lines.push(`${th.fg("success", "●")} ${padAnsi("Recorded:", 17)} ${renderBar(total.recordedCost, costMax, 14, th, "success")} ${th.bold(fmtMoney(total.recordedCost))}`);
+		lines.push("");
+		lines.push(tableLine([th.fg("accent", "Sessions"), th.fg("accent", "Calls"), th.fg("accent", "Models")], [10, 8, 8]));
+		lines.push(tableLine([fmtInt(this.result.filesIncluded), fmtInt(total.calls), fmtInt(this.result.byModel.length)], [10, 8, 8]));
+
+		if (this.result.mode === "cwd") {
+			lines.push(...this.sectionRows("By day", this.result.byDay, 7));
+			lines.push(...this.sectionRows("By month", this.result.byMonth, 6));
+		}
+		lines.push(...this.sectionRows("Top models", this.result.byModel, 5, totalCost));
+		lines.push("");
+		lines.push(th.fg("dim", "Tip: use /spend dashboard for this graphical view."));
+
+		return lines.map((line) => truncateToWidth(line, Math.max(1, width)));
+	}
 }
 
 function renderReport(result: ScanResult): string {
@@ -421,7 +620,7 @@ function renderReport(result: ScanResult): string {
 				: `Repo: \`${result.repoRoot}\``;
 
 	const lines: string[] = [];
-	lines.push(`# Pi repo spend`);
+	lines.push(`# Pi spend`);
 	lines.push("");
 	lines.push(`**Scope:** ${scope}`);
 	lines.push(`**Session root:** \`${result.sessionRoot}\``);
@@ -437,28 +636,36 @@ function renderReport(result: ScanResult): string {
 	lines.push(row("Cache write tokens", fmtInt(total.cacheWrite)));
 	lines.push(row("Total tokens", fmtInt(total.totalTokens)));
 	lines.push(row("Recorded cost", fmtMoney(total.recordedCost)));
-	lines.push(row("Estimated Ollama Cloud cost", fmtMoney(total.estimatedCost)));
 	lines.push(row("Total cost", `**${fmtMoney(totalCost(total))}**`));
 	lines.push(row("Oldest included session mtime", fmtDate(result.oldest)));
 	lines.push(row("Newest included session mtime", fmtDate(result.newest)));
 	if (result.parseErrors > 0) lines.push(row("Parse errors", fmtInt(result.parseErrors)));
 	lines.push("");
 
-	if (result.mode === "all" && result.byRepo.length > 0) {
-		lines.push("## By repo / cwd");
+	if (result.mode === "cwd" && result.byMonth.length > 0) {
+		lines.push("## By month");
 		lines.push("");
-		lines.push("Repo / cwd | Sessions | Calls | Tokens | Recorded | Ollama estimate | Total | Top model");
-		lines.push("---|---:|---:|---:|---:|---:|---:|---");
-		for (const item of result.byRepo) lines.push(repoRow(item));
+		lines.push("Month | Calls | Tokens | Recorded | Total");
+		lines.push("---|---:|---:|---:|---:");
+		for (const item of result.byMonth) lines.push(timeBucketRow(item));
 		lines.push("");
 	}
 
-	if (result.byProvider.length > 0) {
-		lines.push("## By provider");
+	if (result.mode === "cwd" && result.byDay.length > 0) {
+		lines.push("## By day");
 		lines.push("");
-		lines.push("Provider | Calls | Tokens | Recorded | Ollama estimate | Total");
-		lines.push("---|---:|---:|---:|---:|---:");
-		for (const item of result.byProvider) lines.push(providerRow(item));
+		lines.push("Day | Calls | Tokens | Recorded | Total");
+		lines.push("---|---:|---:|---:|---:");
+		for (const item of result.byDay) lines.push(timeBucketRow(item));
+		lines.push("");
+	}
+
+	if (result.mode === "all" && result.byRepo.length > 0) {
+		lines.push("## By repo / cwd");
+		lines.push("");
+		lines.push("Repo / cwd | Sessions | Calls | Tokens | Recorded | Total | Top model");
+		lines.push("---|---:|---:|---:|---:|---:|---");
+		for (const item of result.byRepo) lines.push(repoRow(item));
 		lines.push("");
 	}
 
@@ -486,17 +693,22 @@ function renderReport(result: ScanResult): string {
 	if (result.filesIncluded === 0) {
 		lines.push("No matching Pi session files found for this scope.");
 		lines.push("");
-		lines.push("Try `/repo-spend all` to scan every session folder.");
+		lines.push("Try `/spend all` to scan every session folder.");
 	}
 
 	return lines.join("\n");
 }
 
-function parseMode(args: string): ScanMode {
-	const arg = args.trim().toLowerCase();
-	if (arg === "all" || arg === "--all") return "all";
-	if (arg === "cwd" || arg === "--cwd" || arg === "exact" || arg === "--exact") return "cwd";
-	return "repo";
+function parseArgs(args: string): ParsedArgs {
+	const parsed: ParsedArgs = { mode: "cwd", view: "text" };
+	for (const raw of args.trim().toLowerCase().split(/\s+/).filter(Boolean)) {
+		if (raw === "all" || raw === "--all") parsed.mode = "all";
+		else if (raw === "repo" || raw === "--repo") parsed.mode = "repo";
+		else if (raw === "cwd" || raw === "--cwd" || raw === "exact" || raw === "--exact") parsed.mode = "cwd";
+		else if (raw === "text" || raw === "markdown" || raw === "md" || raw === "--text") parsed.view = "text";
+		else if (raw === "dashboard" || raw === "dash" || raw === "graph" || raw === "graphical" || raw === "--dashboard") parsed.view = "dashboard";
+	}
+	return parsed;
 }
 
 function contentToString(content: any): string {
@@ -517,7 +729,9 @@ function clearStatus(ctx: any) {
 }
 
 export default function repoSpendExtension(pi: ExtensionAPI) {
-	pi.registerMessageRenderer(EXTENSION_ID, (message, _options, _theme) => {
+	pi.registerMessageRenderer(EXTENSION_ID, (message, _options, theme) => {
+		const details = message.details as { result?: ScanResult; view?: ReportView } | undefined;
+		if (details?.result && details.view !== "text") return new SpendDashboard(details.result, theme);
 		return new Markdown(contentToString(message.content), 0, 0, getMarkdownTheme());
 	});
 
@@ -530,17 +744,20 @@ export default function repoSpendExtension(pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand(COMMAND, {
-		description: "Show token usage and cost for this repo, including estimated Ollama Cloud spend",
+		description: "Show token/cost spend for this cwd, including daily/monthly breakdowns and model-level estimated Ollama Cloud spend",
 		getArgumentCompletions: (prefix) => {
 			const options = [
 				{ value: "all", label: "all", description: "Scan all Pi sessions" },
 				{ value: "cwd", label: "cwd", description: "Only sessions with exactly this cwd" },
+				{ value: "repo", label: "repo", description: "Sessions in the current git repo" },
+				{ value: "text", label: "text", description: "Render the copyable Markdown report" },
+				{ value: "dashboard", label: "dashboard", description: "Render the graphical dashboard" },
 			];
 			const filtered = options.filter((item) => item.value.startsWith(prefix.trim().toLowerCase()));
 			return filtered.length ? filtered : null;
 		},
 		handler: async (args, ctx) => {
-			const mode = parseMode(args);
+			const { mode, view } = parseArgs(args);
 			ctx.ui.notify("Calculating Pi spend...", "info");
 			const result = await scanSpend(pi, ctx.cwd, mode);
 			const report = renderReport(result);
@@ -549,7 +766,7 @@ export default function repoSpendExtension(pi: ExtensionAPI) {
 				customType: EXTENSION_ID,
 				content: report,
 				display: true,
-				details: result,
+				details: { result, view },
 			});
 
 			ctx.ui.setStatus(EXTENSION_ID, undefined);
