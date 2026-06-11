@@ -1,6 +1,6 @@
 # pi-repo-spend
 
-A Pi extension that reports how much money and how many tokens you have spent per repo, provider, and model.
+A Pi extension that shows a graphical dashboard for how much money and how many tokens you have spent per cwd, repo, provider, model, month, and day.
 
 It reads Pi's local JSONL session logs from `~/.pi/agent/sessions`, aggregates usage, and shows a Markdown report inside Pi.
 
@@ -16,18 +16,25 @@ It reads Pi's local JSONL session logs from `~/.pi/agent/sessions`, aggregates u
 
 ## What it shows
 
+- Graphical token composition dashboard inspired by `/context`
 - Total token usage
 - Total recorded cost from Pi logs
 - Estimated Ollama Cloud cost when Pi records Ollama as `$0`
+- Cost by month and day for exact-cwd reports
 - Cost by provider
 - Cost by model
 - Cost by repo/cwd when scanning all sessions
+- Copyable Markdown report via `text` mode
 
 ## Screenshots
 
-Example output for the current repo/session:
+Example graphical dashboard for the current cwd/session:
 
-![Actual /repo-spend output showing summary, provider totals, and model totals](assets/screenshots/repo-spend-current-session.png)
+![Actual /repo-spend graphical dashboard showing token composition, spend bars, and daily/monthly sections](assets/screenshots/repo-spend-dashboard.png)
+
+Example copyable text output for the current cwd/session:
+
+![Actual /repo-spend text output showing summary, provider totals, and model totals](assets/screenshots/repo-spend-current-session.png)
 
 Example output for all Pi sessions grouped by repo/cwd:
 
@@ -36,10 +43,23 @@ Example output for all Pi sessions grouped by repo/cwd:
 ## Commands
 
 ```text
-/repo-spend       # current git repo; includes sessions in repo subdirectories
-/repo-spend cwd   # only sessions whose cwd exactly matches the current cwd
-/repo-spend all   # all Pi sessions, grouped by repo/cwd
+/repo-spend            # graphical dashboard for sessions whose cwd exactly matches the current cwd
+/repo-spend cwd        # same as /repo-spend
+/repo-spend repo       # graphical dashboard for the current git repo; no monthly/daily tables
+/repo-spend all        # graphical dashboard for all Pi sessions, grouped by repo/cwd; no monthly/daily tables
+/repo-spend text       # copyable Markdown report for exact cwd
+/repo-spend all text   # copyable Markdown report for all Pi sessions
 ```
+
+In exact-cwd mode (`/repo-spend` or `/repo-spend cwd`), the report includes monthly and daily tables like:
+
+| Month | Calls | Tokens | Recorded | Ollama estimate | Total |
+|---|---:|---:|---:|---:|---:|
+| 2026-06 | 20 | 333,194 | $0.82 | $0.00 | $0.82 |
+
+| Day | Calls | Tokens | Recorded | Ollama estimate | Total |
+|---|---:|---:|---:|---:|---:|
+| 2026-06-11 | 20 | 333,194 | $0.82 | $0.00 | $0.82 |
 
 In `/repo-spend all`, the report includes a table like:
 
