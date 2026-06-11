@@ -315,7 +315,6 @@ async function scanSpend(pi: ExtensionAPI, cwd: string, mode: ScanMode): Promise
 
 			const provider = String(message.provider ?? "unknown");
 			const model = String(message.model ?? "unknown");
-			const api = String(message.api ?? "unknown");
 			const usage = message.usage;
 			const recordedCost = Number(usage?.cost?.total ?? 0);
 			const ollamaEstimate = provider === "ollama" ? estimateOllamaCost(model, usage) : { cost: 0 };
@@ -346,10 +345,10 @@ async function scanSpend(pi: ExtensionAPI, cwd: string, mode: ScanMode): Promise
 			}
 			addInto(repoModelTotals, item);
 
-			const modelKey = `${provider}\t${model}\t${api}`;
+			const modelKey = `${provider}\t${model}`;
 			let modelTotals = byModelMap.get(modelKey);
 			if (!modelTotals) {
-				modelTotals = { ...blankTotals(), provider, model, api, pricingSource: ollamaEstimate.source };
+				modelTotals = { ...blankTotals(), provider, model, api: "*", pricingSource: ollamaEstimate.source };
 				byModelMap.set(modelKey, modelTotals);
 			}
 			addInto(modelTotals, item);
