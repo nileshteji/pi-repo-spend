@@ -53,13 +53,13 @@ Example output for all Pi sessions grouped by repo/cwd:
 
 In exact-cwd mode (`/repo-spend` or `/repo-spend cwd`), the report includes monthly and daily tables like:
 
-| Month | Calls | Tokens | Recorded | Ollama estimate | Total |
-|---|---:|---:|---:|---:|---:|
-| 2026-06 | 20 | 333,194 | $0.82 | $0.00 | $0.82 |
+| Month | Calls | Tokens | Recorded | Total |
+|---|---:|---:|---:|---:|
+| 2026-06 | 20 | 333,194 | $0.82 | $0.82 |
 
-| Day | Calls | Tokens | Recorded | Ollama estimate | Total |
-|---|---:|---:|---:|---:|---:|
-| 2026-06-11 | 20 | 333,194 | $0.82 | $0.00 | $0.82 |
+| Day | Calls | Tokens | Recorded | Total |
+|---|---:|---:|---:|---:|
+| 2026-06-11 | 20 | 333,194 | $0.82 | $0.82 |
 
 In `/repo-spend all`, the report includes a table like:
 

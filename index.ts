@@ -471,7 +471,6 @@ function timeBucketRow(item: TimeBucketTotals): string {
 		fmtInt(item.calls),
 		fmtInt(item.totalTokens),
 		fmtMoney(item.recordedCost),
-		fmtMoney(item.estimatedCost),
 		fmtMoney(totalCost(item)),
 	].join(" | ");
 }
@@ -665,8 +664,8 @@ function renderReport(result: ScanResult): string {
 	if (result.mode === "cwd" && result.byMonth.length > 0) {
 		lines.push("## By month");
 		lines.push("");
-		lines.push("Month | Calls | Tokens | Recorded | Ollama estimate | Total");
-		lines.push("---|---:|---:|---:|---:|---:");
+		lines.push("Month | Calls | Tokens | Recorded | Total");
+		lines.push("---|---:|---:|---:|---:");
 		for (const item of result.byMonth) lines.push(timeBucketRow(item));
 		lines.push("");
 	}
@@ -674,8 +673,8 @@ function renderReport(result: ScanResult): string {
 	if (result.mode === "cwd" && result.byDay.length > 0) {
 		lines.push("## By day");
 		lines.push("");
-		lines.push("Day | Calls | Tokens | Recorded | Ollama estimate | Total");
-		lines.push("---|---:|---:|---:|---:|---:");
+		lines.push("Day | Calls | Tokens | Recorded | Total");
+		lines.push("---|---:|---:|---:|---:");
 		for (const item of result.byDay) lines.push(timeBucketRow(item));
 		lines.push("");
 	}
