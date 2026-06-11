@@ -5,8 +5,8 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 
-const EXTENSION_ID = "pi-repo-spend";
-const COMMAND = "repo-spend";
+const EXTENSION_ID = "spend";
+const COMMAND = "spend";
 const MILLION = 1_000_000;
 
 type NumericTotals = {
@@ -604,7 +604,7 @@ class SpendDashboard implements Component {
 		}
 		lines.push(...this.sectionRows("Top models", this.result.byModel, 5, totalCost));
 		lines.push("");
-		lines.push(th.fg("dim", "Tip: use /repo-spend text for the copyable Markdown table."));
+		lines.push(th.fg("dim", "Tip: use /spend text for the copyable Markdown table."));
 
 		return lines.map((line) => truncateToWidth(line, Math.max(1, width)));
 	}
@@ -620,7 +620,7 @@ function renderReport(result: ScanResult): string {
 				: `Repo: \`${result.repoRoot}\``;
 
 	const lines: string[] = [];
-	lines.push(`# Pi repo spend`);
+	lines.push(`# Pi spend`);
 	lines.push("");
 	lines.push(`**Scope:** ${scope}`);
 	lines.push(`**Session root:** \`${result.sessionRoot}\``);
@@ -693,7 +693,7 @@ function renderReport(result: ScanResult): string {
 	if (result.filesIncluded === 0) {
 		lines.push("No matching Pi session files found for this scope.");
 		lines.push("");
-		lines.push("Try `/repo-spend all` to scan every session folder.");
+		lines.push("Try `/spend all` to scan every session folder.");
 	}
 
 	return lines.join("\n");

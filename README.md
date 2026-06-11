@@ -1,4 +1,4 @@
-# pi-repo-spend
+# spend
 
 A Pi extension that shows a graphical dashboard for how much money and how many tokens you have spent per cwd, repo, model, month, and day.
 
@@ -6,12 +6,12 @@ It reads Pi's local JSONL session logs from `~/.pi/agent/sessions`, aggregates u
 
 ## Extension name
 
-`pi-repo-spend`
+`spend`
 
 ## Slash command
 
 ```text
-/repo-spend
+/spend
 ```
 
 ## What it shows
@@ -29,28 +29,28 @@ It reads Pi's local JSONL session logs from `~/.pi/agent/sessions`, aggregates u
 
 Example graphical dashboard for the current cwd/session:
 
-![Actual /repo-spend graphical dashboard showing token composition, spend bars, and daily/monthly sections](assets/screenshots/repo-spend-dashboard.png)
+![Actual /spend graphical dashboard showing token composition, spend bars, and daily/monthly sections](assets/screenshots/spend-dashboard.png)
 
 Example copyable text output for the current cwd/session:
 
-![Actual /repo-spend text output showing summary and model totals](assets/screenshots/repo-spend-current-session.png)
+![Actual /spend text output showing summary and model totals](assets/screenshots/spend-current-session.png)
 
 Example output for all Pi sessions grouped by repo/cwd:
 
-![Actual /repo-spend all output showing spend grouped by repo and cwd](assets/screenshots/repo-spend-all-sessions.png)
+![Actual /spend all output showing spend grouped by repo and cwd](assets/screenshots/spend-all-sessions.png)
 
 ## Commands
 
 ```text
-/repo-spend            # graphical dashboard for sessions whose cwd exactly matches the current cwd
-/repo-spend cwd        # same as /repo-spend
-/repo-spend repo       # graphical dashboard for the current git repo; no monthly/daily tables
-/repo-spend all        # graphical dashboard for all Pi sessions, grouped by repo/cwd; no monthly/daily tables
-/repo-spend text       # copyable Markdown report for exact cwd
-/repo-spend all text   # copyable Markdown report for all Pi sessions
+/spend            # graphical dashboard for sessions whose cwd exactly matches the current cwd
+/spend cwd        # same as /spend
+/spend repo       # graphical dashboard for the current git repo; no monthly/daily tables
+/spend all        # graphical dashboard for all Pi sessions, grouped by repo/cwd; no monthly/daily tables
+/spend text       # copyable Markdown report for exact cwd
+/spend all text   # copyable Markdown report for all Pi sessions
 ```
 
-In exact-cwd mode (`/repo-spend` or `/repo-spend cwd`), the report includes monthly and daily tables like:
+In exact-cwd mode (`/spend` or `/spend cwd`), the report includes monthly and daily tables like:
 
 | Month | Calls | Tokens | Recorded | Total |
 |---|---:|---:|---:|---:|
@@ -60,7 +60,7 @@ In exact-cwd mode (`/repo-spend` or `/repo-spend cwd`), the report includes mont
 |---|---:|---:|---:|---:|
 | 2026-06-11 | 20 | 333,194 | $0.82 | $0.82 |
 
-In `/repo-spend all`, the report includes a table like:
+In `/spend all`, the report includes a table like:
 
 | Repo / cwd | Sessions | Calls | Tokens | Recorded | Total | Top model |
 |---|---:|---:|---:|---:|---:|---|
@@ -75,7 +75,7 @@ pi -e /Users/nileshteji/aibot/pi-repo-spend
 Then use:
 
 ```text
-/repo-spend
+/spend
 ```
 
 ## Install as a local Pi package
