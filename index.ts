@@ -512,14 +512,8 @@ function contentToString(content: any): string {
 	return String(content ?? "");
 }
 
-async function updateStatus(pi: ExtensionAPI, ctx: any) {
-	if (!ctx.hasUI) return;
-	try {
-		const result = await scanSpend(pi, ctx.cwd, "repo");
-		ctx.ui.setStatus(EXTENSION_ID, `💸 ${fmtMoney(totalCost(result.totals))}`);
-	} catch {
-		ctx.ui.setStatus(EXTENSION_ID, undefined);
-	}
+function clearStatus(ctx: any) {
+	if (ctx.hasUI) ctx.ui.setStatus(EXTENSION_ID, undefined);
 }
 
 export default function repoSpendExtension(pi: ExtensionAPI) {
@@ -528,11 +522,11 @@ export default function repoSpendExtension(pi: ExtensionAPI) {
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
-		await updateStatus(pi, ctx);
+		clearStatus(ctx);
 	});
 
 	pi.on("agent_end", async (_event, ctx) => {
-		await updateStatus(pi, ctx);
+		clearStatus(ctx);
 	});
 
 	pi.registerCommand(COMMAND, {
@@ -558,7 +552,7 @@ export default function repoSpendExtension(pi: ExtensionAPI) {
 				details: result,
 			});
 
-			ctx.ui.setStatus(EXTENSION_ID, `💸 ${fmtMoney(totalCost(result.totals))}`);
+			ctx.ui.setStatus(EXTENSION_ID, undefined);
 		},
 	});
 }

@@ -23,6 +23,16 @@ It reads Pi's local JSONL session logs from `~/.pi/agent/sessions`, aggregates u
 - Cost by model
 - Cost by repo/cwd when scanning all sessions
 
+## Screenshots
+
+Example output for the current repo:
+
+![Example /repo-spend output showing summary, provider totals, and model totals](assets/screenshots/repo-spend-current-repo.svg)
+
+Example output for all Pi sessions grouped by repo/cwd:
+
+![Example /repo-spend all output showing spend grouped by repo and cwd](assets/screenshots/repo-spend-all-sessions.svg)
+
 ## Commands
 
 ```text
