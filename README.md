@@ -2,7 +2,7 @@
 
 A Pi extension that shows a graphical dashboard for how much money and how many tokens you have spent per cwd, repo, provider, model, month, and day.
 
-It reads Pi's local JSONL session logs from `~/.pi/agent/sessions`, aggregates usage, and shows a Markdown report inside Pi.
+It reads Pi's local JSONL session logs from `~/.pi/agent/sessions`, aggregates usage, and shows a graphical dashboard or copyable Markdown report inside Pi.
 
 ## Extension name
 
@@ -19,7 +19,7 @@ It reads Pi's local JSONL session logs from `~/.pi/agent/sessions`, aggregates u
 - Graphical token composition dashboard inspired by `/context`
 - Total token usage
 - Total recorded cost from Pi logs
-- Estimated Ollama Cloud cost when Pi records Ollama as `$0`
+- Model-level estimated Ollama Cloud cost when Pi records Ollama as `$0`
 - Cost by month and day for exact-cwd reports
 - Cost by provider
 - Cost by model
@@ -63,9 +63,9 @@ In exact-cwd mode (`/repo-spend` or `/repo-spend cwd`), the report includes mont
 
 In `/repo-spend all`, the report includes a table like:
 
-| Repo / cwd | Sessions | Calls | Tokens | Recorded | Ollama estimate | Total | Top model |
-|---|---:|---:|---:|---:|---:|---:|---|
-| `my-repo (/path/to/my-repo)` | 3 | 120 | 1,234,567 | `$4.20` | `$0.12` | `$4.32` | `openai-codex/gpt-5.5` |
+| Repo / cwd | Sessions | Calls | Tokens | Recorded | Total | Top model |
+|---|---:|---:|---:|---:|---:|---|
+| `my-repo (/path/to/my-repo)` | 3 | 120 | 1,234,567 | `$4.20` | `$4.32` | `openai-codex/gpt-5.5` |
 
 ## Run once
 
@@ -95,7 +95,7 @@ Then restart Pi or run:
 
 - For providers where Pi records `usage.cost.total`, this extension uses the recorded cost.
 - For Ollama Cloud, Pi often records `$0`; this extension estimates the cost from a hardcoded pricing table.
-- Ollama estimates are shown separately as `Estimated Ollama Cloud cost`.
+- Ollama estimates are shown in the `Estimate` column of the model table only.
 
 ## Hardcoded Ollama Cloud estimate rates
 

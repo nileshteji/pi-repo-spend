@@ -1,7 +1,7 @@
 {
   "name": "pi-repo-spend",
   "version": "0.1.0",
-  "description": "Pi extension that shows graphical token and cost spend dashboards for the current cwd/repo, including daily and monthly breakdowns plus estimated Ollama Cloud spend.",
+  "description": "Pi extension that shows graphical token and cost spend dashboards for the current cwd/repo, including daily and monthly breakdowns plus model-level estimated Ollama Cloud spend.",
   "keywords": ["pi-package", "pi-extension", "cost", "tokens"],
   "type": "module",
   "pi": {

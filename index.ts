@@ -447,7 +447,6 @@ function providerRow(item: ModelTotals): string {
 		fmtInt(item.calls),
 		fmtInt(item.totalTokens),
 		fmtMoney(item.recordedCost),
-		fmtMoney(item.estimatedCost),
 		fmtMoney(totalCost(item)),
 	].join(" | ");
 }
@@ -459,7 +458,6 @@ function repoRow(item: RepoTotals): string {
 		fmtInt(item.calls),
 		fmtInt(item.totalTokens),
 		fmtMoney(item.recordedCost),
-		fmtMoney(item.estimatedCost),
 		fmtMoney(totalCost(item)),
 		item.topModel ? `\`${item.topModel}\`` : "n/a",
 	].join(" | ");
@@ -659,7 +657,6 @@ function renderReport(result: ScanResult): string {
 	lines.push(row("Cache write tokens", fmtInt(total.cacheWrite)));
 	lines.push(row("Total tokens", fmtInt(total.totalTokens)));
 	lines.push(row("Recorded cost", fmtMoney(total.recordedCost)));
-	lines.push(row("Estimated Ollama Cloud cost", fmtMoney(total.estimatedCost)));
 	lines.push(row("Total cost", `**${fmtMoney(totalCost(total))}**`));
 	lines.push(row("Oldest included session mtime", fmtDate(result.oldest)));
 	lines.push(row("Newest included session mtime", fmtDate(result.newest)));
@@ -687,8 +684,8 @@ function renderReport(result: ScanResult): string {
 	if (result.mode === "all" && result.byRepo.length > 0) {
 		lines.push("## By repo / cwd");
 		lines.push("");
-		lines.push("Repo / cwd | Sessions | Calls | Tokens | Recorded | Ollama estimate | Total | Top model");
-		lines.push("---|---:|---:|---:|---:|---:|---:|---");
+		lines.push("Repo / cwd | Sessions | Calls | Tokens | Recorded | Total | Top model");
+		lines.push("---|---:|---:|---:|---:|---:|---");
 		for (const item of result.byRepo) lines.push(repoRow(item));
 		lines.push("");
 	}
@@ -696,8 +693,8 @@ function renderReport(result: ScanResult): string {
 	if (result.byProvider.length > 0) {
 		lines.push("## By provider");
 		lines.push("");
-		lines.push("Provider | Calls | Tokens | Recorded | Ollama estimate | Total");
-		lines.push("---|---:|---:|---:|---:|---:");
+		lines.push("Provider | Calls | Tokens | Recorded | Total");
+		lines.push("---|---:|---:|---:|---:");
 		for (const item of result.byProvider) lines.push(providerRow(item));
 		lines.push("");
 	}
@@ -777,7 +774,7 @@ export default function repoSpendExtension(pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand(COMMAND, {
-		description: "Show graphical token/cost spend for this cwd, including daily/monthly breakdowns and estimated Ollama Cloud spend",
+		description: "Show graphical token/cost spend for this cwd, including daily/monthly breakdowns and model-level estimated Ollama Cloud spend",
 		getArgumentCompletions: (prefix) => {
 			const options = [
 				{ value: "all", label: "all", description: "Scan all Pi sessions" },
