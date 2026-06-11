@@ -569,20 +569,26 @@ class SpendDashboard implements Component {
 		return `${th.fg(color, symbol)} ${padAnsi(`${label}:`, 17)} ${th.bold(value.padStart(9))} ${th.fg("muted", `(${pct})`)}`;
 	}
 
-	private sectionRows(title: string, rows: Array<TimeBucketTotals | ModelTotals>, maxRows: number): string[] {
+	private sectionRows(
+		title: string,
+		rows: Array<TimeBucketTotals | ModelTotals>,
+		maxRows: number,
+		costOf: (row: TimeBucketTotals | ModelTotals) => number = (row) => row.recordedCost
+	): string[] {
 		if (rows.length === 0) return [];
 		const th = this.theme;
 		const visible = rows.slice(0, maxRows);
-		const max = Math.max(...visible.map(totalCost), ...visible.map((row) => row.totalTokens / MILLION), 0.000001);
+		const max = Math.max(...visible.map(costOf), ...visible.map((row) => row.totalTokens / MILLION), 0.000001);
 		const labelFor = (row: TimeBucketTotals | ModelTotals) =>
 			"period" in row ? row.period : row.model === "*" ? row.provider : `${row.provider}/${row.model}`;
 		const labelWidth = Math.min(26, Math.max(title.length, ...visible.map((row) => labelFor(row).length)));
 		const lines = ["", th.bold(title)];
 		for (const row of visible) {
 			const label = labelFor(row);
-			const score = totalCost(row) > 0 ? totalCost(row) : row.totalTokens / MILLION;
+			const cost = costOf(row);
+			const score = cost > 0 ? cost : row.totalTokens / MILLION;
 			lines.push(
-				`${truncateToWidth(label, labelWidth).padEnd(labelWidth)}  ${renderBar(score, max, 14, th, totalCost(row) > 0 ? "success" : "accent")}  ${fmtMoney(totalCost(row)).padStart(8)}  ${fmtCompact(row.totalTokens).padStart(7)} tok`
+				`${truncateToWidth(label, labelWidth).padEnd(labelWidth)}  ${renderBar(score, max, 14, th, cost > 0 ? "success" : "accent")}  ${fmtMoney(cost).padStart(8)}  ${fmtCompact(row.totalTokens).padStart(7)} tok`
 			);
 		}
 		if (rows.length > maxRows) lines.push(th.fg("dim", `… ${rows.length - maxRows} more`));
@@ -593,8 +599,8 @@ class SpendDashboard implements Component {
 		const th = this.theme;
 		const total = this.result.totals;
 		const totalTokens = total.totalTokens || total.input + total.output + total.cacheRead + total.cacheWrite;
-		const totalSpend = totalCost(total);
-		const costMax = Math.max(total.recordedCost, total.estimatedCost, totalSpend, 0.000001);
+		const totalSpend = total.recordedCost;
+		const costMax = Math.max(total.recordedCost, 0.000001);
 		const lines: string[] = [];
 
 		lines.push(th.bold("Pi Spend"));
@@ -610,7 +616,6 @@ class SpendDashboard implements Component {
 		lines.push(this.legendLine("◌", "Cache write", fmtCompact(total.cacheWrite), percent(total.cacheWrite, totalTokens), "muted"));
 		lines.push("");
 		lines.push(`${th.fg("success", "●")} ${padAnsi("Recorded:", 17)} ${renderBar(total.recordedCost, costMax, 14, th, "success")} ${th.bold(fmtMoney(total.recordedCost))}`);
-		lines.push(`${th.fg("warning", "○")} ${padAnsi("Ollama estimate:", 17)} ${renderBar(total.estimatedCost, costMax, 14, th, "warning")} ${th.bold(fmtMoney(total.estimatedCost))}`);
 		lines.push("");
 		lines.push(tableLine([th.fg("accent", "Sessions"), th.fg("accent", "Calls"), th.fg("accent", "Providers"), th.fg("accent", "Models")], [10, 8, 10, 8]));
 		lines.push(tableLine([fmtInt(this.result.filesIncluded), fmtInt(total.calls), fmtInt(this.result.byProvider.length), fmtInt(this.result.byModel.length)], [10, 8, 10, 8]));
@@ -620,7 +625,7 @@ class SpendDashboard implements Component {
 			lines.push(...this.sectionRows("By month", this.result.byMonth, 6));
 		}
 		lines.push(...this.sectionRows("Top providers", this.result.byProvider, 5));
-		lines.push(...this.sectionRows("Top models", this.result.byModel, 5));
+		lines.push(...this.sectionRows("Top models", this.result.byModel, 5, totalCost));
 		lines.push("");
 		lines.push(th.fg("dim", "Tip: use /repo-spend text for the copyable Markdown table."));
 
