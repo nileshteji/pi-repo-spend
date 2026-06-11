@@ -35,6 +35,17 @@ type ModelTotals = NumericTotals & {
 	pricingSource?: string;
 };
 
+type RepoTotals = NumericTotals & {
+	cwd: string;
+	label: string;
+	sessions: number;
+	topModel?: string;
+};
+
+type RepoAccumulator = RepoTotals & {
+	models: Map<string, NumericTotals>;
+};
+
 type ScanMode = "repo" | "all" | "cwd";
 
 type ScanResult = {
@@ -50,6 +61,7 @@ type ScanResult = {
 	totals: NumericTotals;
 	byModel: ModelTotals[];
 	byProvider: ModelTotals[];
+	byRepo: RepoTotals[];
 };
 
 const OLLAMA_CLOUD_PRICES: Record<string, Price> = {
@@ -199,6 +211,26 @@ function shouldIncludeSession(headerCwd: string | undefined, mode: ScanMode, cwd
 	return isSameOrInside(headerCwd, repoRoot);
 }
 
+function repoLabel(cwd: string): string {
+	const resolved = path.resolve(cwd);
+	const name = path.basename(resolved) || resolved;
+	return `${name} (${resolved})`;
+}
+
+function finalizeRepo(acc: RepoAccumulator): RepoTotals {
+	let topModel: string | undefined;
+	let topModelScore = -1;
+	for (const [model, totals] of acc.models) {
+		const score = totalCost(totals) > 0 ? totalCost(totals) : totals.totalTokens / MILLION;
+		if (score > topModelScore) {
+			topModelScore = score;
+			topModel = model;
+		}
+	}
+	const { models: _models, ...repo } = acc;
+	return { ...repo, topModel };
+}
+
 async function scanSpend(pi: ExtensionAPI, cwd: string, mode: ScanMode): Promise<ScanResult> {
 	const root = sessionRoot();
 	const repoRoot = await getRepoRoot(pi, cwd);
@@ -206,6 +238,7 @@ async function scanSpend(pi: ExtensionAPI, cwd: string, mode: ScanMode): Promise
 	const totals = blankTotals();
 	const byModelMap = new Map<string, ModelTotals>();
 	const byProviderMap = new Map<string, ModelTotals>();
+	const byRepoMap = new Map<string, RepoAccumulator>();
 	let filesIncluded = 0;
 	let parseErrors = 0;
 	let oldest: string | undefined;
@@ -226,6 +259,14 @@ async function scanSpend(pi: ExtensionAPI, cwd: string, mode: ScanMode): Promise
 		}
 
 		filesIncluded++;
+		const repoKey = headerCwd ? path.resolve(headerCwd) : "<unknown cwd>";
+		let repoTotals = byRepoMap.get(repoKey);
+		if (!repoTotals) {
+			repoTotals = { ...blankTotals(), cwd: repoKey, label: repoLabel(repoKey), sessions: 0, models: new Map() };
+			byRepoMap.set(repoKey, repoTotals);
+		}
+		repoTotals.sessions++;
+
 		const fileStat = await stat(file).catch(() => undefined);
 		if (fileStat) {
 			const mtime = fileStat.mtime.toISOString();
@@ -265,6 +306,14 @@ async function scanSpend(pi: ExtensionAPI, cwd: string, mode: ScanMode): Promise
 				calls: 1,
 			};
 			addInto(totals, item);
+			addInto(repoTotals, item);
+			const repoModelKey = `${provider}/${model}`;
+			let repoModelTotals = repoTotals.models.get(repoModelKey);
+			if (!repoModelTotals) {
+				repoModelTotals = blankTotals();
+				repoTotals.models.set(repoModelKey, repoModelTotals);
+			}
+			addInto(repoModelTotals, item);
 
 			const modelKey = `${provider}\t${model}\t${api}`;
 			let modelTotals = byModelMap.get(modelKey);
@@ -297,6 +346,7 @@ async function scanSpend(pi: ExtensionAPI, cwd: string, mode: ScanMode): Promise
 		totals,
 		byModel: [...byModelMap.values()].sort((a, b) => totalCost(b) - totalCost(a)),
 		byProvider: [...byProviderMap.values()].sort((a, b) => totalCost(b) - totalCost(a)),
+		byRepo: [...byRepoMap.values()].map(finalizeRepo).sort((a, b) => totalCost(b) - totalCost(a)),
 	};
 }
 
@@ -348,6 +398,19 @@ function providerRow(item: ModelTotals): string {
 	].join(" | ");
 }
 
+function repoRow(item: RepoTotals): string {
+	return [
+		` ${item.label.replace(/`/g, "")} `,
+		fmtInt(item.sessions),
+		fmtInt(item.calls),
+		fmtInt(item.totalTokens),
+		fmtMoney(item.recordedCost),
+		fmtMoney(item.estimatedCost),
+		fmtMoney(totalCost(item)),
+		item.topModel ? `\`${item.topModel}\`` : "n/a",
+	].join(" | ");
+}
+
 function renderReport(result: ScanResult): string {
 	const total = result.totals;
 	const scope =
@@ -380,6 +443,15 @@ function renderReport(result: ScanResult): string {
 	lines.push(row("Newest included session mtime", fmtDate(result.newest)));
 	if (result.parseErrors > 0) lines.push(row("Parse errors", fmtInt(result.parseErrors)));
 	lines.push("");
+
+	if (result.mode === "all" && result.byRepo.length > 0) {
+		lines.push("## By repo / cwd");
+		lines.push("");
+		lines.push("Repo / cwd | Sessions | Calls | Tokens | Recorded | Ollama estimate | Total | Top model");
+		lines.push("---|---:|---:|---:|---:|---:|---:|---");
+		for (const item of result.byRepo) lines.push(repoRow(item));
+		lines.push("");
+	}
 
 	if (result.byProvider.length > 0) {
 		lines.push("## By provider");
