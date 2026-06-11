@@ -604,7 +604,7 @@ class SpendDashboard implements Component {
 		}
 		lines.push(...this.sectionRows("Top models", this.result.byModel, 5, totalCost));
 		lines.push("");
-		lines.push(th.fg("dim", "Tip: use /spend text for the copyable Markdown table."));
+		lines.push(th.fg("dim", "Tip: use /spend dashboard for this graphical view."));
 
 		return lines.map((line) => truncateToWidth(line, Math.max(1, width)));
 	}
@@ -700,7 +700,7 @@ function renderReport(result: ScanResult): string {
 }
 
 function parseArgs(args: string): ParsedArgs {
-	const parsed: ParsedArgs = { mode: "cwd", view: "dashboard" };
+	const parsed: ParsedArgs = { mode: "cwd", view: "text" };
 	for (const raw of args.trim().toLowerCase().split(/\s+/).filter(Boolean)) {
 		if (raw === "all" || raw === "--all") parsed.mode = "all";
 		else if (raw === "repo" || raw === "--repo") parsed.mode = "repo";
@@ -744,7 +744,7 @@ export default function repoSpendExtension(pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand(COMMAND, {
-		description: "Show graphical token/cost spend for this cwd, including daily/monthly breakdowns and model-level estimated Ollama Cloud spend",
+		description: "Show token/cost spend for this cwd, including daily/monthly breakdowns and model-level estimated Ollama Cloud spend",
 		getArgumentCompletions: (prefix) => {
 			const options = [
 				{ value: "all", label: "all", description: "Scan all Pi sessions" },

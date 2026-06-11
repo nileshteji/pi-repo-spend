@@ -1,8 +1,8 @@
 # spend
 
-A Pi extension that shows a graphical dashboard for how much money and how many tokens you have spent per cwd, repo, model, month, and day.
+A Pi extension that reports how much money and how many tokens you have spent per cwd, repo, model, month, and day.
 
-It reads Pi's local JSONL session logs from `~/.pi/agent/sessions`, aggregates usage, and shows a graphical dashboard or copyable Markdown report inside Pi.
+It reads Pi's local JSONL session logs from `~/.pi/agent/sessions`, aggregates usage, and shows a copyable Markdown report or graphical dashboard inside Pi.
 
 ## Extension name
 
@@ -16,24 +16,25 @@ It reads Pi's local JSONL session logs from `~/.pi/agent/sessions`, aggregates u
 
 ## What it shows
 
-- Graphical token composition dashboard inspired by `/context`
+- Copyable Markdown report by default
+- Optional graphical token composition dashboard inspired by `/context`
 - Total token usage
 - Total recorded cost from Pi logs
 - Model-level estimated Ollama Cloud cost when Pi records Ollama as `$0`
 - Cost by month and day for exact-cwd reports
 - Cost by model
 - Cost by repo/cwd when scanning all sessions
-- Copyable Markdown report via `text` mode
+- Graphical dashboard via `dashboard` mode
 
 ## Screenshots
-
-Example graphical dashboard for the current cwd/session:
-
-![Actual /spend graphical dashboard showing token composition, spend bars, and daily/monthly sections](assets/screenshots/spend-dashboard.png)
 
 Example copyable text output for the current cwd/session:
 
 ![Actual /spend text output showing summary and model totals](assets/screenshots/spend-current-session.png)
+
+Example graphical dashboard for the current cwd/session:
+
+![Actual /spend dashboard output showing token composition, spend bars, and daily/monthly sections](assets/screenshots/spend-dashboard.png)
 
 Example output for all Pi sessions grouped by repo/cwd:
 
@@ -42,12 +43,12 @@ Example output for all Pi sessions grouped by repo/cwd:
 ## Commands
 
 ```text
-/spend            # graphical dashboard for sessions whose cwd exactly matches the current cwd
-/spend cwd        # same as /spend
-/spend repo       # graphical dashboard for the current git repo; no monthly/daily tables
-/spend all        # graphical dashboard for all Pi sessions, grouped by repo/cwd; no monthly/daily tables
-/spend text       # copyable Markdown report for exact cwd
-/spend all text   # copyable Markdown report for all Pi sessions
+/spend                 # copyable Markdown report for sessions whose cwd exactly matches the current cwd
+/spend cwd             # same as /spend
+/spend repo            # copyable Markdown report for the current git repo; no monthly/daily tables
+/spend all             # copyable Markdown report for all Pi sessions, grouped by repo/cwd; no monthly/daily tables
+/spend dashboard       # graphical dashboard for exact cwd
+/spend all dashboard   # graphical dashboard for all Pi sessions
 ```
 
 In exact-cwd mode (`/spend` or `/spend cwd`), the report includes monthly and daily tables like:
